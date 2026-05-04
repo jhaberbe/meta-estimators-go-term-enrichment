@@ -6,12 +6,18 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "anndata>=0.12.6",
+    "build>=1.5.0",
     "forestplot>=0.4.1",
     "ipykernel>=7.2.0",
+    "mygene>=3.2.2",
     "pandas>=3.0.2",
     "pydeseq2>=0.5.4",
     "pymare>=0.0.10",
     "requests>=2.33.1",
     "scanpy>=1.12.1",
     "tqdm>=4.67.3",
+    "twine>=6.2.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
