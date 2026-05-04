@@ -7,14 +7,16 @@ requires-python = ">=3.13"
 dependencies = [
     "anndata>=0.12.6",
     "build>=1.5.0",
+    "decoupler>=2.1.6",
     "forestplot>=0.4.1",
+    "gprofiler-official>=1.0.0",
     "ipykernel>=7.2.0",
-    "mygene>=3.2.2",
     "pandas>=3.0.2",
     "pydeseq2>=0.5.4",
     "pymare>=0.0.10",
     "requests>=2.33.1",
     "scanpy>=1.12.1",
+    "statsmodels>=0.14.6",
     "tqdm>=4.67.3",
     "twine>=6.2.0",
 ]

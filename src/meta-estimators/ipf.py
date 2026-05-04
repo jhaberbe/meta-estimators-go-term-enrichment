@@ -13,8 +13,8 @@ class ReweightingPreparer:
         go_terms = go_terms.loc[:, go_terms.sum(axis=0).gt(0)]
         deseq_results = deseq_results.loc[joint_index]
 
-        row_marginals = deseq_results["baseMean"].apply(np.log1p)
-        column_marginals = go_terms.sum(axis=0).apply(np.log1p)
+        row_marginals = deseq_results["baseMean"]
+        column_marginals = go_terms.sum(axis=0)
 
         return deseq_results, go_terms, row_marginals, column_marginals
 
