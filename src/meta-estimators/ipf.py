@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from scipy import sparse
+import numpy as np
+from tqdm.auto import tqdm
 
 # Worst name ever.
 class ReweightingPreparer:
@@ -15,30 +16,7 @@ class ReweightingPreparer:
         deseq_results = deseq_results.loc[joint_index]
 
         row_marginals = deseq_results["baseMean"]
-<<<<<<< HEAD
         column_marginals = go_terms.sum(axis=0)
-=======
-
-        # Degree-corrected expectation:
-        # each feature splits its mass evenly across its annotated GO terms.
-        row_degree = go_terms.sum(axis=1)
-
-        if row_degree.eq(0).any():
-            keep = row_degree.gt(0)
-            go_terms = go_terms.loc[keep]
-            deseq_results = deseq_results.loc[keep]
-            row_marginals = row_marginals.loc[keep]
-            row_degree = row_degree.loc[keep]
-
-        degree_corrected_go_terms = go_terms.div(row_degree, axis=0)
-
-        naive_expectation = row_marginals @ degree_corrected_go_terms
-
-        # Rescale so column marginals have the same total mass as row marginals.
-        column_marginals = (
-            naive_expectation * row_marginals.sum()
-        ) / naive_expectation.sum()
->>>>>>> 652fa07 (Balancing of weights was changed.)
 
         return deseq_results, go_terms, row_marginals, column_marginals
 class IterativeProportionalFitting:
@@ -186,3 +164,109 @@ class IterativeProportionalFitting:
         )
 
         return balanced_matrix
+    
+    def degree_corrected_doubly_stochastic(
+        self,
+        A,
+        max_iter=10_000,
+        tol=1e-3,
+        min_percent_change=1e-3,
+        patience=25,
+        eps=1e-12,
+        verbose=True,
+    ):
+        """
+        Convert a nonnegative binary/weighted matrix into a doubly stochastic matrix
+        using Sinkhorn-Knopp scaling.
+
+        Stops when:
+        1. row/column sums are within `tol` of 1, or
+        2. convergence stalls, measured by percent change in error.
+        """
+
+        A = np.asarray(A, dtype=float)
+
+        if np.any(A < 0):
+            raise ValueError("A must be nonnegative.")
+
+        if np.any(A.sum(axis=1) == 0):
+            raise ValueError(
+                "A has at least one all-zero row, so exact row stochasticity is impossible."
+            )
+
+        if np.any(A.sum(axis=0) == 0):
+            raise ValueError(
+                "A has at least one all-zero column, so exact column stochasticity is impossible."
+            )
+
+        n, m = A.shape
+        r = np.ones(n)
+        c = np.ones(m)
+
+        prev_error = np.inf
+        stalled_iters = 0
+        converged = False
+        stopped_due_to_stall = False
+
+        iterator = range(1, max_iter + 1)
+        if verbose:
+            iterator = tqdm(iterator, desc="Sinkhorn scaling")
+
+        for iteration in iterator:
+            row_sums = A @ c
+            r = 1.0 / np.maximum(row_sums, eps)
+
+            col_sums = A.T @ r
+            c = 1.0 / np.maximum(col_sums, eps)
+
+            P = r[:, None] * A * c[None, :]
+
+            row_error = np.max(np.abs(P.sum(axis=1) - 1))
+            col_error = np.max(np.abs(P.sum(axis=0) - 1))
+            error = max(row_error, col_error)
+
+            if np.isfinite(prev_error) and prev_error > 0:
+                percent_change = 100 * (prev_error - error) / prev_error
+            else:
+                percent_change = np.nan
+
+            if verbose:
+                iterator.set_postfix(
+                    {
+                        "err": f"{error:.2e}",
+                        "row": f"{row_error:.2e}",
+                        "col": f"{col_error:.2e}",
+                        "%chg": f"{percent_change:.2e}",
+                        "stall": stalled_iters,
+                    }
+                )
+
+            if error < tol:
+                converged = True
+                break
+
+            if np.isfinite(percent_change):
+                if percent_change < min_percent_change:
+                    stalled_iters += 1
+                else:
+                    stalled_iters = 0
+
+            if stalled_iters >= patience:
+                stopped_due_to_stall = True
+                break
+
+            prev_error = error
+
+        P = r[:, None] * A * c[None, :]
+
+        info = {
+            "iterations": iteration,
+            "final_error": error,
+            "final_row_error": row_error,
+            "final_col_error": col_error,
+            "converged": converged,
+            "stopped_due_to_stall": stopped_due_to_stall,
+            "stalled_iters": stalled_iters,
+        }
+
+        return P, r, c, info
